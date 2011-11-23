@@ -83,8 +83,11 @@ module Excon
 
     def write(data)
       @write_buffer << data
+      write_retries = 0
+
       until @write_buffer.empty?
         begin
+          write_retries += 1
           max_length = [@write_buffer.length, Excon::CHUNK_SIZE].min
           written = @socket.write_nonblock(@write_buffer.slice(0, max_length))
           @write_buffer.slice!(0, written)
@@ -102,6 +105,10 @@ module Excon
           else
             raise(Excon::Errors::Timeout.new("write timeout reached"))
           end
+        else
+          write_retries = 0
+        ensure
+          raise(Excon::Errors::Timeout.new("write retry limit reached")) if write_retries > @params[:write_max_retries]
         end
       end
     end
